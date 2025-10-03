@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
 import io from 'socket.io-client'
 
 interface JoinGroupProps {
@@ -9,6 +10,7 @@ interface JoinGroupProps {
 }
 
 export default function JoinGroup({ onClose, onGroupJoined }: JoinGroupProps) {
+  const { data: session } = useSession()
   const [inviteCode, setInviteCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -16,11 +18,16 @@ export default function JoinGroup({ onClose, onGroupJoined }: JoinGroupProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!inviteCode.trim()) return
+    
+    if (!session?.user?.email) {
+      setError('Please log in first')
+      return
+    }
 
     setLoading(true)
     setError('')
     
-    const socket = io('http://localhost:3002')
+    const socket = io('http://localhost:3003')
     
     socket.on('join-result', (result) => {
       if (result.success) {
@@ -33,7 +40,16 @@ export default function JoinGroup({ onClose, onGroupJoined }: JoinGroupProps) {
       socket.disconnect()
     })
     
-    socket.emit('join-private-group', { inviteCode: inviteCode.toUpperCase() })
+    socket.on('error', (errorMsg) => {
+      setError(errorMsg || 'An error occurred')
+      setLoading(false)
+      socket.disconnect()
+    })
+    
+    socket.emit('join-private-group', { 
+      inviteCode: inviteCode.toUpperCase(),
+      userEmail: session.user.email 
+    })
   }
 
   return (

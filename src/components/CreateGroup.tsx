@@ -23,7 +23,7 @@ export default function CreateGroup({ onClose, onGroupCreated }: CreateGroupProp
     setLoading(true)
     
     // Create group via socket
-    const socket = io('http://localhost:3002')
+    const socket = io('http://localhost:3003')
     
     // Listen for group creation details (for private groups)
     socket.on('group-created-details', (groupDetails) => {

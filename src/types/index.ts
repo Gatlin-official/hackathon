@@ -34,6 +34,20 @@ export interface Message {
   intention?: 'venting' | 'advice' | 'urgent' | null
   edited?: boolean
   editedAt?: Date
+  stressAnalysis?: MessageStressAnalysis
+}
+
+export interface MessageStressAnalysis {
+  id: string
+  messageId: string
+  stressLevel: number // 0-10
+  stressIndicators: string[]
+  emotions: string[]
+  riskLevel: 'low' | 'medium' | 'high' | 'critical'
+  aiSolution?: string
+  suggestions: string[]
+  confidence: number
+  analyzedAt: Date
 }
 
 export interface GroupMembership {

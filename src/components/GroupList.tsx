@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import io from 'socket.io-client'
 
 interface Group {
@@ -19,6 +20,7 @@ interface GroupListProps {
 }
 
 export default function GroupList({ onSelectGroup, selectedGroup }: GroupListProps) {
+  const { data: session } = useSession()
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -26,7 +28,12 @@ export default function GroupList({ onSelectGroup, selectedGroup }: GroupListPro
     // Fetch groups from API
     const fetchGroups = async () => {
       try {
-        const response = await fetch('http://localhost:3002/api/groups')
+        const params = new URLSearchParams()
+        if (session?.user?.email) {
+          params.append('userEmail', session.user.email)
+        }
+        
+        const response = await fetch(`http://localhost:3003/api/groups?${params}`)
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }
@@ -51,16 +58,27 @@ export default function GroupList({ onSelectGroup, selectedGroup }: GroupListPro
     fetchGroups()
 
     // Set up socket connection for real-time group updates
-    const socket = io('http://localhost:3002')
+    const socket = io('http://localhost:3003')
     
     socket.on('group-created', (newGroup) => {
-      setGroups(prev => [...prev, newGroup])
+      // For public groups, add immediately to the list
+      if (newGroup.type === 'public') {
+        setGroups(prev => [...prev, newGroup])
+      } else {
+        // For private groups, refetch the entire list to ensure proper visibility
+        fetchGroups()
+      }
+    })
+
+    socket.on('group-joined', () => {
+      // Refetch groups when user joins a group
+      fetchGroups()
     })
 
     return () => {
       socket.disconnect()
     }
-  }, [])
+  }, [session?.user?.email]) // Refetch when user session changes
 
   if (loading) {
     return (
