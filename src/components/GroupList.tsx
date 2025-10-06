@@ -93,7 +93,7 @@ export default function GroupList({ onSelectGroup, selectedGroup }: GroupListPro
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 pb-4">
       {groups.length === 0 ? (
         <div className="text-center text-gray-500 py-8">
           <p className="mb-2">No groups yet</p>

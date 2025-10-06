@@ -31,3 +31,22 @@ export function getUsernameForEmail(email: string): string {
   
   return username
 }
+
+// Get current user's display name
+export function getCurrentUsername(session: any): string {
+  if (session?.user?.name) {
+    return session.user.name
+  }
+  
+  if (session?.user?.email) {
+    return getUsernameForEmail(session.user.email)
+  }
+  
+  // For completely anonymous users
+  let storedUsername = localStorage.getItem('anonymousUsername')
+  if (!storedUsername) {
+    storedUsername = generateRandomUsername()
+    localStorage.setItem('anonymousUsername', storedUsername)
+  }
+  return storedUsername
+}

@@ -47,6 +47,7 @@ export interface MessageStressAnalysis {
   aiSolution?: string
   suggestions: string[]
   confidence: number
+  reason?: string // AI explanation for the stress level assigned
   analyzedAt: Date
 }
 

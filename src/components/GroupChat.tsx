@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import io from 'socket.io-client'
-import { getUsernameForEmail } from '@/utils/username'
+import { getUsernameForEmail, getCurrentUsername } from '@/utils/username'
 import SmartMessageInput from './SmartMessageInput'
 
 interface Message {
@@ -69,17 +69,18 @@ export default function GroupChat({ groupId }: GroupChatProps) {
   const handleSendMessage = (text: string, intention?: 'venting' | 'advice' | 'urgent' | null) => {
     if (!text.trim() || !session?.user) return
 
+    const currentUsername = getCurrentUsername(session)
     const message: Message = {
       id: Date.now().toString(),
       text,
-      senderId: session.user.email || '',
-      senderName: getUsernameForEmail(session.user.email || ''),
-      senderEmail: session.user.email || '',
+      senderId: session.user?.email || 'anonymous',
+      senderName: currentUsername,
+      senderEmail: session.user?.email || '',
       timestamp: new Date(),
       intention,
       sender: {
-        name: getUsernameForEmail(session.user.email || ''),
-        email: session.user.email || ''
+        name: currentUsername,
+        email: session.user?.email || ''
       }
     }
 
@@ -105,7 +106,7 @@ export default function GroupChat({ groupId }: GroupChatProps) {
         {messages.map((message) => {
           // Handle different message data structures
           const senderEmail = message.sender?.email || message.senderEmail || ''
-          const senderName = message.sender?.name || message.senderName || 'Unknown User'
+          const senderName = message.sender?.name || message.senderName || getCurrentUsername(null)
           const isOwnMessage = senderEmail === session?.user?.email
           
           return (

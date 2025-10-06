@@ -15,56 +15,89 @@ export default function CreateGroup({ onClose, onGroupCreated }: CreateGroupProp
   const [description, setDescription] = useState('')
   const [groupType, setGroupType] = useState<'public' | 'private'>('public')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!groupName.trim() || !session?.user?.email) return
 
     setLoading(true)
+    setError('')
+    setSuccess('')
     
-    // Create group via socket
-    const socket = io('http://localhost:3003')
-    
-    // Listen for group creation details (for private groups)
-    socket.on('group-created-details', (groupDetails) => {
-      if (groupDetails.type === 'private' && onGroupCreated) {
-        onGroupCreated({
-          groupName: groupDetails.name,
-          inviteCode: groupDetails.inviteCode,
-          inviteLink: groupDetails.inviteLink
-        })
-      }
-      setLoading(false)
-      onClose()
-      socket.disconnect()
-    })
-    
-    // Listen for errors
-    socket.on('error', (error) => {
-      console.error('Group creation error:', error)
-      alert(`Error creating group: ${error}`)
-      setLoading(false)
-      socket.disconnect()
-    })
-    
-    const groupData = {
-      name: groupName,
-      description: description,
-      type: groupType,
-      createdBy: session.user.email // Add the user email as creator
-    }
-    
-    console.log('Sending group data:', groupData)
-    socket.emit('create-group', groupData)
-    
-    // Fallback timeout for public groups
-    setTimeout(() => {
-      if (groupType === 'public') {
+    try {
+      // Create group via socket
+      const socket = io('http://localhost:3003')
+      
+      // Listen for successful group creation
+      socket.on('group-created-success', (data) => {
+        setSuccess(`Group "${data.groupName}" created successfully!`)
+        setTimeout(() => {
+          setLoading(false)
+          onClose()
+          socket.disconnect()
+        }, 1500)
+      })
+      
+      // Listen for group creation details (for private groups)
+      socket.on('group-created-details', (groupDetails) => {
+        if (groupDetails.type === 'private' && onGroupCreated) {
+          onGroupCreated({
+            groupName: groupDetails.name,
+            inviteCode: groupDetails.inviteCode,
+            inviteLink: groupDetails.inviteLink
+          })
+        }
+        setSuccess(`Private group "${groupDetails.name}" created successfully!`)
+        setTimeout(() => {
+          setLoading(false)
+          onClose()
+          socket.disconnect()
+        }, 2000)
+      })
+      
+      // Listen for errors
+      socket.on('error', (error) => {
+        console.error('Group creation error:', error)
+        setError(`Error creating group: ${error}`)
         setLoading(false)
-        onClose()
         socket.disconnect()
+      })
+
+      // Connection error handling
+      socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error)
+        setError('Failed to connect to server. Please try again.')
+        setLoading(false)
+        socket.disconnect()
+      })
+
+      const groupData = {
+        name: groupName,
+        description: description,
+        type: groupType,
+        userEmail: session.user.email, // Add the user email for membership tracking
+        createdBy: session.user.email // Add the user email as creator
       }
-    }, 1000)
+      
+      console.log('Sending group data:', groupData)
+      socket.emit('create-group', groupData)
+      
+      // Fallback timeout for public groups
+      setTimeout(() => {
+        if (groupType === 'public') {
+          setLoading(false)
+          onClose()
+          socket.disconnect()
+        }
+      }, 3000)
+
+    } catch (err) {
+      console.error('Unexpected error:', err)
+      setError('An unexpected error occurred. Please try again.')
+      setLoading(false)
+    }
   }
 
   return (
@@ -84,6 +117,28 @@ export default function CreateGroup({ onClose, onGroupCreated }: CreateGroupProp
               </svg>
             </button>
           </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                {error}
+              </div>
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                {success}
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

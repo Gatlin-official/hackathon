@@ -22,6 +22,19 @@ const handler = NextAuth({
   pages: {
     signIn: '/',
   },
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  events: {
+    async signOut({ session, token }) {
+      // Clear any stored data on sign out
+      console.log('User signed out:', session?.user?.email || 'Unknown user')
+    },
+  },
 })
 
 export { handler as GET, handler as POST }

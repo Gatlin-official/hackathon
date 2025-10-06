@@ -4,7 +4,6 @@ const http = require('http')
 const socketIo = require('socket.io')
 const cors = require('cors')
 const admin = require('firebase-admin')
-const { GoogleGenerativeAI } = require('@google/generative-ai')
 
 // Load environment variables from root directory
 const path = require('path')
@@ -72,78 +71,6 @@ function generateUsername(email) {
   return `${adjective}${animal}${number}`
 }
 
-// Initialize Gemini AI for comprehensive stress analysis
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY)
-const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
-
-// Comprehensive Stress Analysis Function
-async function performComprehensiveStressAnalysis(messageData) {
-  try {
-    const systemPrompt = `You are an AI system tasked with analyzing student forum messages for stress levels and providing support.
-
-For each message text you receive:
-1. Analyze the text and assign a **stress score from 0 to 10** (0 = no stress, 10 = extremely stressed).
-2. If the stress score is greater than 5:
-   - Generate a **short, empathetic, and actionable advice message** that the student can follow to relieve stress.
-   - Include practical suggestions, mental health tips, or resources relevant to students.
-3. If the stress score is 5 or below:
-   - Return only the stress score.
-
-Format the output as JSON:
-{
-  "message_id": "${messageData.id}",
-  "stress_score": <numeric_score>,
-  "ai_advice": "<advice_or_empty_if_score_≤5>"
-}
-
-Be concise, supportive, and empathetic. Do not provide generic advice—make it student-friendly.
-
-Message to analyze: "${messageData.text}"`;
-
-    const result = await model.generateContent(systemPrompt)
-    const response = await result.response
-    const responseText = response.text()
-    
-    // Parse the JSON response
-    let analysis
-    try {
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        analysis = JSON.parse(jsonMatch[0])
-      } else {
-        throw new Error('No JSON found in response')
-      }
-    } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError)
-      // Fallback analysis
-      analysis = {
-        message_id: messageData.id,
-        stress_score: 0,
-        ai_advice: ""
-      }
-    }
-    
-    // Store comprehensive stress analysis in Firebase
-    if (analysis.stress_score > 0) {
-      await db.collection('comprehensive_stress_analyses').add({
-        messageId: messageData.id,
-        userEmail: messageData.userEmail,
-        messageText: messageData.text,
-        stressScore: Math.max(0, Math.min(10, analysis.stress_score)),
-        aiAdvice: analysis.ai_advice || "",
-        hasAdvice: analysis.stress_score > 5,
-        analyzedAt: admin.firestore.FieldValue.serverTimestamp(),
-        timestamp: messageData.timestamp
-      })
-      
-      console.log(`Comprehensive analysis completed for message ${messageData.id}: stress score ${analysis.stress_score}`)
-    }
-    
-  } catch (error) {
-    console.error('Comprehensive stress analysis failed:', error)
-  }
-}
-
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id)
@@ -209,21 +136,6 @@ io.on('connection', (socket) => {
       
       // Broadcast message to all users in the group
       io.to(groupId).emit('new-message', messageWithId)
-      
-      // Trigger comprehensive stress analysis in background
-      setImmediate(async () => {
-        try {
-          await performComprehensiveStressAnalysis({
-            id: messageRef.id,
-            text: message.text,
-            userEmail: message.sender.email,
-            timestamp: new Date()
-          })
-        } catch (error) {
-          console.error('Error in comprehensive stress analysis:', error)
-        }
-      })
-      
     } catch (error) {
       console.error('Error sending message:', error)
       socket.emit('error', 'Failed to send message')
@@ -280,6 +192,13 @@ io.on('connection', (socket) => {
       // Send group info back to creator
       socket.emit('group-created-details', newGroup)
       
+      // Send success notification
+      socket.emit('group-created-success', {
+        groupName: newGroup.name,
+        groupId: newGroup.id,
+        type: newGroup.type
+      })
+      
       // Send updated groups list to all clients
       const publicGroupInfo = {
         id: newGroup.id,
@@ -295,7 +214,7 @@ io.on('connection', (socket) => {
         socket.emit('group-created', publicGroupInfo)
       }
       
-      console.log('New group created:', newGroup.name, 'Type:', newGroup.type)
+      console.log('New group created successfully:', newGroup.name, 'Type:', newGroup.type)
     } catch (error) {
       console.error('Error creating group:', error)
       socket.emit('error', `Failed to create group: ${error.message}`)
@@ -497,34 +416,6 @@ app.post('/api/stress-analysis', async (req, res) => {
   } catch (error) {
     console.error('Error saving stress analysis:', error)
     res.status(500).json({ error: 'Failed to save stress analysis' })
-  }
-})
-
-// Get comprehensive stress analyses for user
-app.get('/api/user/:email/comprehensive-analyses', async (req, res) => {
-  try {
-    const userEmail = req.params.email
-    
-    // Get comprehensive stress analyses
-    const analysesRef = db.collection('comprehensive_stress_analyses')
-    const analysesQuery = analysesRef.where('userEmail', '==', userEmail)
-    
-    const snapshot = await analysesQuery.get()
-    const analyses = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      analyzedAt: doc.data().analyzedAt?.toDate(),
-      timestamp: doc.data().timestamp?.toDate()
-    }))
-    
-    // Sort by timestamp (most recent first)
-    analyses.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0))
-    
-    console.log(`Found ${analyses.length} comprehensive analyses for user ${userEmail}`)
-    res.json(analyses)
-  } catch (error) {
-    console.error('Error fetching comprehensive analyses:', error)
-    res.status(500).json({ error: 'Failed to fetch comprehensive analyses' })
   }
 })
 

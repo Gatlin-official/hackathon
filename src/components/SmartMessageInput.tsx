@@ -46,16 +46,21 @@ export default function SmartMessageInput({ onSendMessage, groupId }: SmartMessa
       if (!text.trim() || text.length < 10) return
 
       setIsAnalyzing(true)
+      // Clear previous analysis to avoid caching issues
+      setStressAnalysis(null)
+      
       try {
         const analyzer = getStressAnalyzer()
         const context: MessageContext = {
-          text,
+          text: text.trim(), // Trim whitespace
           intention: currentIntention,
           timestamp: new Date(),
           userHistory: userStressHistory.slice(-5) // Last 5 analyses for context
         }
 
+        console.log('Analyzing message:', text.substring(0, 50) + '...') // Debug log
         const analysis = await analyzer.analyzeStress(context)
+        console.log('Analysis result:', analysis) // Debug log
         setStressAnalysis(analysis)
 
         // Show alert for high stress
@@ -80,6 +85,30 @@ export default function SmartMessageInput({ onSendMessage, groupId }: SmartMessa
       debouncedFullAnalysis.cancel()
     }
   }, [message, intention, debouncedQuickAnalysis, debouncedFullAnalysis])
+
+  // Test function to verify AI is working - can be removed later
+  const testAI = async () => {
+    try {
+      console.log('Testing AI with sample message...');
+      const analyzer = getStressAnalyzer()
+      const testMessage = "I'm gonna die from all this stress"
+      const context: MessageContext = {
+        text: testMessage,
+        intention: null,
+        timestamp: new Date(),
+        userHistory: []
+      }
+      const result = await analyzer.analyzeStress(context)
+      console.log('AI Test Result:', result)
+    } catch (error) {
+      console.error('AI Test Failed:', error)
+    }
+  }
+
+  // Run test on component mount (remove this in production)
+  useEffect(() => {
+    testAI()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -110,6 +139,7 @@ export default function SmartMessageInput({ onSendMessage, groupId }: SmartMessa
             stressIndicators: stressAnalysis.stressIndicators,
             riskLevel: stressAnalysis.riskLevel,
             suggestions: stressAnalysis.suggestions,
+            reason: stressAnalysis.reason,
             intention: intention,
             timestamp: new Date().toISOString()
           })
@@ -215,9 +245,15 @@ export default function SmartMessageInput({ onSendMessage, groupId }: SmartMessa
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Type your message..."
-              className={`w-full border-2 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors bg-white text-gray-900 placeholder-gray-500 ${getStressColor()}`}
+              className={`w-full border-2 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-gray-900 placeholder-gray-500 bg-white shadow-sm ${getStressColor()}`}
               rows={3}
               maxLength={1000}
+              style={{ 
+                color: '#111827', 
+                backgroundColor: '#ffffff',
+                fontSize: '14px',
+                lineHeight: '1.5'
+              }}
             />
             <div className="flex justify-between items-center mt-1">
               <span className="text-xs text-gray-400">
