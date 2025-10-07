@@ -42,6 +42,13 @@ export interface WellnessResponse {
   followUpSuggestions: string[]
   therapeuticTechniques?: string[]
   crisisLevel: 'none' | 'mild' | 'moderate' | 'severe'
+  calendarSuggestion?: {
+    needed: boolean
+    type: 'study_plan' | 'wellness_schedule' | 'exam_prep' | 'time_management'
+    subject?: string
+    examDate?: string
+    stressLevel: number
+  }
 }
 
 export class IntelligentWellnessBot {

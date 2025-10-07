@@ -22,12 +22,13 @@ export async function POST(request: NextRequest) {
       `${msg.isUser ? 'User' : 'Zen'}: ${msg.text}`
     ).join('\n')
 
-    // Enhanced system prompt for better responses
+    // Enhanced system prompt with calendar integration
     const systemPrompt = `You are "Zen", an advanced AI wellness companion for students. Your personality:
 
 🧠 CORE IDENTITY:
 - Warm, empathetic, genuinely caring
 - Knowledgeable about psychology and stress management  
+- Can create personalized study plans and wellness schedules
 - Uses natural emojis in conversation
 - Adapts to user's emotional state and input
 
@@ -36,7 +37,14 @@ export async function POST(request: NextRequest) {
 - For positive messages: Celebrate and encourage
 - For stress/anxiety: Validate feelings, offer specific coping strategies
 - For academic concerns: Provide study tips and exam stress management
+- For scheduling requests: Offer to create personalized study/wellness plans
 - For crisis keywords: Provide immediate support and resources
+
+📅 CALENDAR INTEGRATION:
+Detect if user needs help with:
+- "study plan", "schedule", "exam preparation", "time management"
+- "organize my week", "plan my studies", "calendar help"
+- "when should I study", "how to prepare for exam"
 
 🎯 ALWAYS respond in this JSON format:
 {
@@ -44,8 +52,23 @@ export async function POST(request: NextRequest) {
   "emotionalTone": "empathetic|encouraging|urgent|celebratory", 
   "followUpSuggestions": ["specific suggestion 1", "specific suggestion 2"],
   "therapeuticTechniques": ["technique 1", "technique 2"],
-  "crisisLevel": "none|mild|moderate|severe"
+  "crisisLevel": "none|mild|moderate|severe",
+  "calendarSuggestion": {
+    "needed": true/false,
+    "type": "study_plan|wellness_schedule|exam_prep|time_management",
+    "subject": "extracted subject if mentioned",
+    "examDate": "extracted date if mentioned (YYYY-MM-DD format)",
+    "stressLevel": 1-10
+  }
 }
+
+🔍 IMPORTANT: Check the user message for these calendar trigger words:
+- "study plan", "schedule", "plan", "organize", "calendar"  
+- "exam", "test", "assignment", "homework"
+- "time management", "help me plan", "create a schedule"
+- "prepare for", "study for", "when should I study"
+
+If ANY of these appear, set calendarSuggestion.needed = true and fill in the details!
 
 Make your response specifically about their message: "${message}"`
 
@@ -78,13 +101,20 @@ Respond as Zen with a personalized, contextual response that directly addresses 
 
     const botResponse = JSON.parse(jsonMatch[0])
     
+    // Fallback calendar detection if Gemini missed it
+    let calendarSuggestion = botResponse.calendarSuggestion
+    if (!calendarSuggestion || !calendarSuggestion.needed) {
+      calendarSuggestion = detectCalendarNeed(message)
+    }
+    
     // Validate response structure
     const validatedResponse = {
       message: botResponse.message || getContextualFallback(message),
       emotionalTone: botResponse.emotionalTone || 'empathetic',
       followUpSuggestions: Array.isArray(botResponse.followUpSuggestions) ? botResponse.followUpSuggestions : [],
       therapeuticTechniques: Array.isArray(botResponse.therapeuticTechniques) ? botResponse.therapeuticTechniques : [],
-      crisisLevel: botResponse.crisisLevel || 'none'
+      crisisLevel: botResponse.crisisLevel || 'none',
+      calendarSuggestion: calendarSuggestion
     }
 
     return NextResponse.json({
@@ -203,5 +233,75 @@ function getContextualFallback(message: string): any {
       "Check in with your emotions without judgment"
     ],
     crisisLevel: 'none'
+  }
+}
+
+// Enhanced calendar detection function
+function detectCalendarNeed(message: string): any {
+  const lowerMessage = message.toLowerCase()
+  
+  // Calendar trigger words
+  const calendarKeywords = [
+    'study plan', 'schedule', 'plan', 'organize', 'calendar',
+    'exam', 'test', 'assignment', 'homework', 'prepare for',
+    'time management', 'help me plan', 'create a schedule',
+    'when should i study', 'study for', 'organize my time',
+    'make a plan', 'plan my studies', 'study schedule'
+  ]
+  
+  const hasCalendarKeyword = calendarKeywords.some(keyword => lowerMessage.includes(keyword))
+  
+  if (!hasCalendarKeyword) {
+    return { needed: false }
+  }
+  
+  // Extract subject if mentioned
+  const subjects = ['math', 'chemistry', 'physics', 'biology', 'english', 'history', 'computer science', 'economics', 'psychology', 'sociology', 'literature', 'science']
+  const foundSubject = subjects.find(subject => lowerMessage.includes(subject))
+  
+  // Extract time references
+  let examDate = null
+  const timeKeywords = ['tomorrow', 'next week', 'next month', 'friday', 'monday', 'tuesday', 'wednesday', 'thursday', 'saturday', 'sunday']
+  const hasTimeRef = timeKeywords.some(time => lowerMessage.includes(time))
+  
+  if (lowerMessage.includes('tomorrow')) {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    examDate = tomorrow.toISOString().split('T')[0]
+  } else if (lowerMessage.includes('next week') || lowerMessage.includes('friday')) {
+    const nextWeek = new Date()
+    nextWeek.setDate(nextWeek.getDate() + 7)
+    examDate = nextWeek.toISOString().split('T')[0]
+  }
+  
+  // Determine plan type
+  let planType = 'study_plan'
+  if (lowerMessage.includes('wellness') || lowerMessage.includes('stress relief') || lowerMessage.includes('break')) {
+    planType = 'wellness_schedule'
+  } else if (lowerMessage.includes('exam') || lowerMessage.includes('test')) {
+    planType = 'exam_prep'
+  } else if (lowerMessage.includes('time management') || lowerMessage.includes('organize')) {
+    planType = 'time_management'
+  }
+  
+  // Estimate stress level from message tone
+  const stressWords = ['stressed', 'overwhelmed', 'anxious', 'panic', 'worried', 'struggling']
+  const stressLevel = stressWords.some(word => lowerMessage.includes(word)) ? 7 : 5
+  
+  console.log('📅 Calendar detection result:', {
+    needed: true,
+    type: planType,
+    subject: foundSubject,
+    examDate,
+    stressLevel,
+    triggeredBy: calendarKeywords.filter(keyword => lowerMessage.includes(keyword))
+  })
+  
+  return {
+    needed: true,
+    type: planType,
+    subject: foundSubject || 'Your Subject',
+    examDate: examDate,
+    stressLevel: stressLevel
   }
 }

@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { getCurrentUsername } from '@/utils/username'
 import { useStressNotifications, requestNotificationPermission } from '@/hooks/useStressNotifications'
 // import StressNotificationsPanel from './StressNotificationsPanel' // Temporarily disabled
+import CalendarIntegration from './CalendarIntegration'
 import { 
   intelligentWellnessBot, 
   ConversationContext, 
@@ -658,6 +659,34 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
                                 <div key={idx} className="text-xs text-green-700">• {technique}</div>
                               ))}
                             </div>
+                          )}
+
+                          {/* Calendar Integration - NEW FEATURE! */}
+                          {message.aiResponse.calendarSuggestion && message.aiResponse.calendarSuggestion.needed && (
+                            <CalendarIntegration 
+                              calendarSuggestion={message.aiResponse.calendarSuggestion}
+                              onCalendarCreated={(success, eventCount) => {
+                                if (success) {
+                                  // Add a follow-up message from Zen
+                                  const followUpMessage: ChatMessage = {
+                                    id: Date.now().toString() + '_calendar_success',
+                                    text: `🎉 Perfect! I've added ${eventCount} events to your Google Calendar. Your personalized schedule is ready to help you manage stress and stay organized. Remember, you can always adjust these times to fit your needs better!`,
+                                    isUser: false,
+                                    timestamp: new Date()
+                                  }
+                                  setMessages(prev => [...prev, followUpMessage])
+                                } else {
+                                  const errorMessage: ChatMessage = {
+                                    id: Date.now().toString() + '_calendar_error',
+                                    text: `😊 No worries! Even without adding to your calendar, you can still follow the schedule I suggested. Screenshot it or write it down - the important thing is having a plan that works for you!`,
+                                    isUser: false,
+                                    timestamp: new Date()
+                                  }
+                                  setMessages(prev => [...prev, errorMessage])
+                                }
+                              }}
+                              className="mt-2"
+                            />
                           )}
 
                           {/* Crisis level indicator */}
