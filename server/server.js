@@ -3,6 +3,7 @@ const http = require('http')
 const socketIo = require('socket.io')
 const cors = require('cors')
 const admin = require('firebase-admin')
+const fetch = require('node-fetch')
 
 // Load environment variables from root directory
 const path = require('path')
@@ -53,6 +54,12 @@ app.use(express.json())
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id)
 
+  // Store user ID when they connect (for targeted notifications)
+  socket.on('user-identity', (userEmail) => {
+    socket.userId = userEmail
+    console.log(`User identity set: ${userEmail} on socket ${socket.id}`)
+  })
+
   // Join a group
   socket.on('join-group', async (groupId) => {
     try {
@@ -89,30 +96,63 @@ io.on('connection', (socket) => {
   // Handle new message
   socket.on('send-message', async (data) => {
     try {
-      const { groupId, message, username, isAI } = data
+      const { groupId, message } = data
       console.log('New message:', message)
       
+      // Prepare message data for Firebase storage
       const messageData = {
-        text: message.text || message,
-        username: message.username || username || 'Anonymous',
+        id: message.id,
+        text: message.text,
+        senderId: message.senderId || message.senderEmail,
+        senderName: message.senderName,
+        senderEmail: message.senderEmail,
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        isAI: message.isAI || isAI || false
+        intention: message.intention || null,
+        stressScore: message.stressScore || null,
+        stressLevel: message.stressLevel || null,
+        emotions: message.emotions || [],
+        groupId: groupId
       }
 
       // Store message in Firebase
       const messagesRef = db.collection('groups').doc(groupId).collection('messages')
-      const docRef = await messagesRef.add(messageData)
+      await messagesRef.doc(message.id).set(messageData)
       
       // Create response with proper timestamp for real-time display
       const responseMessage = {
-        id: docRef.id,
-        ...messageData,
+        ...message,
         timestamp: new Date() // Use current time for immediate display
       }
 
       // Broadcast message to all users in the group
       io.to(groupId).emit('new-message', responseMessage)
       console.log(`Message stored in Firebase and broadcasted to group ${groupId}`)
+
+      // Trigger background stress analysis
+      if (message.senderEmail && message.text) {
+        try {
+          // Store in queue for tracking
+          await db.collection('stress_analysis_queue').doc(message.id).set({
+            messageId: message.id,
+            text: message.text,
+            userId: message.senderEmail,
+            userEmail: message.senderEmail,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            groupId: groupId,
+            processed: false
+          })
+
+          console.log(`Queued message ${message.id} for stress analysis`)
+
+          // Process stress analysis immediately
+          processStressAnalysis(message.id, message.text, message.senderEmail, groupId)
+            .catch(error => console.error('Stress analysis failed:', error))
+            
+        } catch (analysisError) {
+          console.error('Failed to queue stress analysis:', analysisError)
+        }
+      }
+
     } catch (error) {
       console.error('Error sending message:', error)
       socket.emit('error', 'Failed to send message')
@@ -306,6 +346,110 @@ app.get('/api/groups/:id/messages', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch messages' })
   }
 })
+
+// Background stress analysis processing
+async function processStressAnalysis(messageId, text, userEmail, groupId) {
+  try {
+    console.log(`Processing stress analysis for message: ${messageId}`)
+    
+    // Call the stress analysis API
+    const response = await fetch('http://localhost:3000/api/analyze-stress', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: text,
+        userEmail: userEmail,
+        messageId: messageId,
+        timestamp: new Date().toISOString()
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Analysis API failed: ${response.status}`)
+    }
+
+    const result = await response.json()
+    console.log(`Stress analysis result:`, result)
+
+    if (result.success && result.analysis) {
+      const analysis = result.analysis
+      
+      // Update the queue record as processed
+      await db.collection('stress_analysis_queue').doc(messageId).update({
+        processed: true,
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+        stressScore: analysis.stressScore,
+        stressLevel: analysis.stressLevel,
+        emotions: analysis.emotions,
+        analysisSource: result.source
+      })
+
+      // If stress score > 5, create notification
+      if (analysis.stressScore > 5) {
+        const notificationId = `stress_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        
+        const notification = {
+          id: notificationId,
+          userId: userEmail,
+          message: generateNotificationMessage(analysis.stressScore, analysis.stressLevel),
+          stressScore: analysis.stressScore,
+          stressLevel: analysis.stressLevel,
+          remedies: analysis.remedies,
+          originalMessage: text,
+          emotions: analysis.emotions,
+          urgency: analysis.urgency,
+          messageId: messageId,
+          groupId: groupId,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          isRead: false,
+          source: result.source
+        }
+
+        // Store notification in Firebase
+        await db.collection('stress_notifications').doc(notificationId).set(notification)
+        console.log(`Created stress notification for user ${userEmail} (score: ${analysis.stressScore})`)
+
+        // Emit notification to user if they're connected
+        const userSockets = Array.from(io.sockets.sockets.values())
+          .filter(socket => socket.userId === userEmail)
+        
+        userSockets.forEach(socket => {
+          socket.emit('stress-notification', {
+            ...notification,
+            timestamp: new Date() // For real-time display
+          })
+        })
+      }
+    }
+
+  } catch (error) {
+    console.error('Failed to process stress analysis:', error)
+    
+    // Mark as failed in queue
+    try {
+      await db.collection('stress_analysis_queue').doc(messageId).update({
+        processed: true,
+        failed: true,
+        error: error.message,
+        processedAt: admin.firestore.FieldValue.serverTimestamp()
+      })
+    } catch (updateError) {
+      console.error('Failed to update queue with error:', updateError)
+    }
+  }
+}
+
+function generateNotificationMessage(stressScore, stressLevel) {
+  if (stressScore >= 8) {
+    return "We detected significant stress in your recent message. Your wellbeing is important - here are some immediate steps that can help."
+  } else if (stressScore >= 7) {
+    return "Your recent message shows signs of stress. Here are some personalized suggestions to support you."
+  } else {
+    return "We noticed some stress indicators in your message. Here are gentle strategies that might be helpful."
+  }
+}
 
 const PORT = process.env.PORT || 3003
 server.listen(PORT, () => {

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { getCurrentUsername } from '@/utils/username'
+import { useStressNotifications, requestNotificationPermission } from '@/hooks/useStressNotifications'
+import StressNotificationsPanel from './StressNotificationsPanel'
 
 interface DashboardStats {
   totalMessages: number
@@ -38,7 +40,7 @@ interface PersonalDashboardProps {
 
 export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
   const { data: session } = useSession()
-  const [activeTab, setActiveTab] = useState<'overview' | 'wellness' | 'insights'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'wellness' | 'insights' | 'notifications'>('overview')
   const [stats, setStats] = useState<DashboardStats>({
     totalMessages: 0,
     stressLevel: 3.2,
@@ -54,11 +56,19 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
   const [inputMessage, setInputMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
+  
+  // Stress notifications system
+  const stressNotifications = useStressNotifications(session?.user?.email || 'anonymous')
 
   // Update time every minute for dynamic greeting
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000)
     return () => clearInterval(timer)
+  }, [])
+
+  // Request notification permission on mount
+  useEffect(() => {
+    requestNotificationPermission()
   }, [])
 
   // AI Chat functionality - Stress Level Analysis
@@ -163,7 +173,13 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
   const tabs = [
     { id: 'overview', label: 'Mood Garden', icon: '🌸', desc: 'Your emotional landscape' },
     { id: 'wellness', label: 'Wellness Corner', icon: '🌿', desc: 'Care & support' },
-    { id: 'insights', label: 'Gentle Insights', icon: '✨', desc: 'Understanding patterns' }
+    { id: 'insights', label: 'Gentle Insights', icon: '✨', desc: 'Understanding patterns' },
+    { 
+      id: 'notifications', 
+      label: 'Wellness Alerts', 
+      icon: stressNotifications.unreadCount > 0 ? '🔔' : '🔕', 
+      desc: stressNotifications.unreadCount > 0 ? `${stressNotifications.unreadCount} new` : 'All clear' 
+    }
   ]
 
   return (
@@ -646,6 +662,17 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'notifications' && (
+            <div className="p-8 h-full overflow-y-auto">
+              <StressNotificationsPanel
+                notifications={stressNotifications.notifications}
+                onMarkAsRead={stressNotifications.markAsRead}
+                onMarkAllAsRead={stressNotifications.markAllAsRead}
+                onDelete={stressNotifications.deleteNotification}
+              />
             </div>
           )}
         </div>
