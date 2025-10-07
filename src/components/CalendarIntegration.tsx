@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import CalendarModal from './CalendarModal'
 
 // Client-side types (matching server-side)
 interface CalendarEvent {
@@ -35,16 +36,34 @@ export default function CalendarIntegration({
   const [hasCalendarAccess, setHasCalendarAccess] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [plannedEvents, setPlannedEvents] = useState<CalendarEvent[]>([])
+  const [showModal, setShowModal] = useState(false)
+  const [modalEventDetails, setModalEventDetails] = useState<any[]>([])
+  const [isSimulationMode, setIsSimulationMode] = useState(true)
 
   useEffect(() => {
     checkCalendarAccess()
   }, [session])
 
   const checkCalendarAccess = async () => {
-    // For now, we'll simulate calendar access based on session
-    // In a full implementation, you'd get the actual Google access token via NextAuth
     if (session?.user) {
-      setHasCalendarAccess(true) // Simulate access for demo
+      try {
+        // Check if user has real Google Calendar access
+        const response = await fetch('/api/calendar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'check_access' })
+        })
+        
+        const result = await response.json()
+        setHasCalendarAccess(result.success)
+        setIsSimulationMode(result.simulationMode)
+        
+        console.log('📅 Calendar Access Check:', result.message)
+      } catch (error) {
+        console.error('Calendar access check failed:', error)
+        setHasCalendarAccess(true) // Allow simulation mode
+        setIsSimulationMode(true)
+      }
     }
   }
 
@@ -109,6 +128,14 @@ export default function CalendarIntegration({
       })
 
       const result = await response.json()
+      
+      // Show detailed feedback to user via modal
+      if (result.eventDetails) {
+        console.log('📅 Calendar Events Created:', result.eventDetails)
+        setModalEventDetails(result.eventDetails)
+        setIsSimulationMode(result.simulationMode || false)
+        setShowModal(true)
+      }
       
       if (onCalendarCreated) {
         onCalendarCreated(result.success, result.createdEvents || plannedEvents.length)
@@ -273,6 +300,14 @@ export default function CalendarIntegration({
           </div>
         </div>
       )}
+      
+      {/* Calendar Creation Modal */}
+      <CalendarModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        eventDetails={modalEventDetails}
+        simulationMode={isSimulationMode}
+      />
     </div>
   )
 }
