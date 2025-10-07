@@ -37,7 +37,7 @@ export class StressAnalyzer {
     
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.model = this.genAI.getGenerativeModel({ 
-      model: 'gemini-pro',
+      model: 'models/gemini-2.5-flash',
       generationConfig: {
         temperature: 0.7,
         topP: 0.8,

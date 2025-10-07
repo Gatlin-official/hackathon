@@ -48,8 +48,13 @@ export const useStressNotifications = (userId: string): StressNotificationContex
 
   // Save notifications to localStorage when they change
   useEffect(() => {
-    if (notifications.length > 0) {
-      localStorage.setItem(`stress_notifications_${userId}`, JSON.stringify(notifications))
+    try {
+      if (notifications.length > 0) {
+        localStorage.setItem(`stress_notifications_${userId}`, JSON.stringify(notifications))
+      }
+    } catch (error) {
+      console.error('Error saving notifications to localStorage:', error)
+      // Silently fail - localStorage issues shouldn't break the app
     }
   }, [notifications, userId])
 
@@ -104,20 +109,30 @@ export const useStressNotifications = (userId: string): StressNotificationContex
 
 // Browser notification helper
 const showBrowserNotification = (notification: StressNotification) => {
-  if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification('Wellness Check-in', {
-      body: `We noticed you might be feeling stressed. Check your dashboard for personalized support.`,
-      icon: '/wellness-icon.png',
-      tag: `stress-${notification.id}`
-    })
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Wellness Check-in', {
+        body: `We noticed you might be feeling stressed. Check your dashboard for personalized support.`,
+        icon: '/wellness-icon.png',
+        tag: `stress-${notification.id}`
+      })
+    }
+  } catch (error) {
+    console.error('Error showing browser notification:', error)
+    // Silently fail - notification system shouldn't break the app
   }
 }
 
 // Request notification permission
 export const requestNotificationPermission = async () => {
-  if ('Notification' in window && Notification.permission === 'default') {
-    const permission = await Notification.requestPermission()
-    return permission === 'granted'
+  try {
+    if ('Notification' in window && Notification.permission === 'default') {
+      const permission = await Notification.requestPermission()
+      return permission === 'granted'
+    }
+    return Notification.permission === 'granted'
+  } catch (error) {
+    console.error('Error requesting notification permission:', error)
+    return false
   }
-  return Notification.permission === 'granted'
 }

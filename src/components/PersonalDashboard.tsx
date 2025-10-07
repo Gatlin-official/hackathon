@@ -4,7 +4,13 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { getCurrentUsername } from '@/utils/username'
 import { useStressNotifications, requestNotificationPermission } from '@/hooks/useStressNotifications'
-import StressNotificationsPanel from './StressNotificationsPanel'
+// import StressNotificationsPanel from './StressNotificationsPanel' // Temporarily disabled
+import { 
+  intelligentWellnessBot, 
+  ConversationContext, 
+  ChatMessage as WellnessChatMessage,
+  WellnessResponse 
+} from '@/lib/intelligent-wellness-bot'
 
 interface DashboardStats {
   totalMessages: number
@@ -25,6 +31,13 @@ interface ChatMessage {
   timestamp: Date
   stressLevel?: number
   emotion?: string
+  emotions?: string[]
+  aiResponse?: WellnessResponse
+  aiAnalysis?: {
+    emotionalState: string
+    supportType: 'validation' | 'advice' | 'crisis' | 'celebration'
+    responseStrategy: string
+  }
 }
 
 interface MoodInsight {
@@ -55,6 +68,19 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
+  const [conversationContext, setConversationContext] = useState<ConversationContext>({
+    messageHistory: [],
+    userProfile: {
+      name: session?.user?.name || undefined,
+      email: session?.user?.email || undefined,
+      preferredTone: 'empathetic'
+    },
+    sessionData: {
+      totalMessages: 0,
+      highStressCount: 0,
+      conversationThemes: []
+    }
+  })
   const [currentTime, setCurrentTime] = useState(new Date())
   
   // Stress notifications system
@@ -71,12 +97,12 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
     requestNotificationPermission()
   }, [])
 
-  // AI Chat functionality - Stress Level Analysis
+  // AI Chat functionality - Enhanced Stress Level Analysis
   const analyzeStressLevel = (text: string): number => {
     const stressKeywords = {
-      high: ['stressed', 'anxious', 'overwhelmed', 'panic', 'exhausted', 'burnout', 'pressure', 'deadline', 'worried', 'depressed', 'crying', 'help'],
-      medium: ['tired', 'busy', 'concerned', 'frustrated', 'confused', 'uncertain', 'difficult', 'annoyed', 'upset'],
-      low: ['calm', 'good', 'fine', 'okay', 'relaxed', 'peaceful', 'content', 'happy', 'great', 'awesome']
+      high: ['stressed', 'anxious', 'overwhelmed', 'panic', 'exhausted', 'burnout', 'pressure', 'deadline', 'worried', 'depressed', 'crying', 'help', 'fear', 'scared', 'terrified', 'nervous', 'exam', 'test', 'fever', 'sick', 'illness'],
+      medium: ['tired', 'busy', 'concerned', 'frustrated', 'confused', 'uncertain', 'difficult', 'annoyed', 'upset', 'think', 'anyone', 'like me', 'feeling', 'because'],
+      low: ['calm', 'good', 'fine', 'okay', 'relaxed', 'peaceful', 'content', 'happy', 'great', 'awesome', 'excellent', 'wonderful']
     }
     
     const words = text.toLowerCase().split(' ')
@@ -106,8 +132,8 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
     }
   }
 
-  // Handle sending messages
-  const handleSendMessage = () => {
+  // Handle sending messages with intelligent wellness bot
+  const handleSendMessage = async () => {
     if (!inputMessage.trim()) return
     
     const stressLevel = analyzeStressLevel(inputMessage)
@@ -119,6 +145,7 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
       stressLevel
     }
     
+    // Add user message to chat
     setMessages(prev => [...prev, userMessage])
     setInputMessage('')
     setIsTyping(true)
@@ -130,17 +157,129 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
       totalMessages: prev.totalMessages + 1
     }))
     
-    // AI response with delay
-    setTimeout(() => {
-      const aiResponse: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        text: generateAIAdvice(stressLevel),
-        isUser: false,
-        timestamp: new Date()
+    try {
+      // Get intelligent AI response using API endpoint
+      console.log('🤖 Getting intelligent wellness response via API...')
+      const apiResponse = await fetch('/api/wellness-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: inputMessage,
+          conversationHistory: conversationContext.messageHistory,
+          userProfile: conversationContext.userProfile
+        })
+      })
+      
+      const data = await apiResponse.json()
+      console.log('🤖 API Response:', data)
+      
+      if (!data.success) {
+        throw new Error('API request failed')
       }
-      setMessages(prev => [...prev, aiResponse])
-      setIsTyping(false)
-    }, 1500)
+      
+      const wellnessResponse = data.response
+      
+      // Update conversation context
+      const updatedContext = intelligentWellnessBot.updateContext(userMessage, conversationContext)
+      setConversationContext(updatedContext)
+      
+      // Create AI response message
+      setTimeout(() => {
+        const aiMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          text: wellnessResponse.message,
+          isUser: false,
+          timestamp: new Date(),
+          aiResponse: wellnessResponse
+        }
+        
+        setMessages(prev => [...prev, aiMessage])
+        setIsTyping(false)
+        
+        // Add detailed wellness notification if stress detected
+        if (stressLevel >= 5 || wellnessResponse.crisisLevel !== 'none') {
+          const urgencyLevel = wellnessResponse.crisisLevel === 'severe' ? 'urgent' : 
+                              wellnessResponse.crisisLevel === 'moderate' ? 'attention' : 'normal'
+          
+          // Generate personalized AI remedies based on the message content and stress analysis
+          const personalizedRemedies = [
+            `Your stress score: ${stressLevel}/10 - ${wellnessResponse.crisisLevel !== 'none' ? 'Elevated stress detected' : 'Mild stress noted'}`,
+            wellnessResponse.message.split('.')[0] || 'Take a moment to breathe deeply',
+            ...wellnessResponse.followUpSuggestions?.slice(0, 2) || ['Practice 4-7-8 breathing', 'Take a 5-minute break'],
+            ...wellnessResponse.therapeuticTechniques?.slice(0, 2) || ['Try progressive muscle relaxation', 'Use the grounding technique: 5 things you see, 4 you hear, 3 you touch']
+          ]
+          
+          stressNotifications.addNotification({
+            userId: session?.user?.email || 'anonymous',
+            message: `🔍 AI Stress Analysis: Detected ${stressLevel}/10 stress level in your message about "${inputMessage.substring(0, 50)}..." - Here's your personalized wellness plan.`,
+            stressScore: stressLevel,
+            stressLevel: stressLevel >= 8 ? 'severe' : stressLevel >= 6 ? 'high' : stressLevel >= 4 ? 'moderate' : 'low',
+            remedies: personalizedRemedies,
+            originalMessage: inputMessage,
+            emotions: wellnessResponse.emotion ? [wellnessResponse.emotion] : ['concern', 'awareness'],
+            urgency: urgencyLevel
+          })
+        }
+        
+        // Show crisis resources if needed
+        if (wellnessResponse.crisisLevel === 'severe') {
+          setTimeout(() => {
+            const crisisResources = intelligentWellnessBot.getCrisisResources()
+            const crisisMessage: ChatMessage = {
+              id: (Date.now() + 2).toString(),
+              text: `🆘 **Crisis Support Resources:**\n\n${crisisResources.join('\n')}\n\n💙 You're not alone. Please reach out for help.`,
+              isUser: false,
+              timestamp: new Date()
+            }
+            setMessages(prev => [...prev, crisisMessage])
+          }, 1000)
+        }
+      }, 1000 + Math.random() * 1000) // Variable response time for natural feel
+      
+    } catch (error) {
+      console.error('Error getting wellness response:', error)
+      
+      // Enhanced fallback using API endpoint 
+      try {
+        const fallbackResponse = await fetch('/api/wellness-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: inputMessage,
+            conversationHistory: [],
+            userProfile: { name: session?.user?.name }
+          })
+        })
+        
+        const fallbackData = await fallbackResponse.json()
+        
+        setTimeout(() => {
+          const fallbackMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            text: fallbackData.response?.message || "I'm here to listen and support you. 💙",
+            isUser: false,
+            timestamp: new Date(),
+            aiResponse: fallbackData.response
+          }
+          setMessages(prev => [...prev, fallbackMessage])
+          setIsTyping(false)
+        }, 1000)
+      } catch (fallbackError) {
+        // Final fallback
+        setTimeout(() => {
+          const finalFallback: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            text: "I'm here to listen and support you. 💙 Could you share a bit more about how you're feeling?",
+            isUser: false,
+            timestamp: new Date()
+          }
+          setMessages(prev => [...prev, finalFallback])
+          setIsTyping(false)
+        }, 1000)
+      }
+    }
   }
 
   // Get dynamic greeting and quote
@@ -392,55 +531,151 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
 
           {activeTab === 'wellness' && (
             <div className="flex flex-col h-full">
-              {/* Chat Header with Stress Analysis */}
-              <div className="p-4 border-b border-gray-200 bg-gray-50">
-                <h3 className="text-lg font-semibold mb-2">AI Wellness Assistant</h3>
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-600">Current Stress Level:</span>
-                    <span className={`font-bold ${
-                      stats.stressLevel <= 3 ? 'text-green-600' : 
-                      stats.stressLevel <= 6 ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
-                      {stats.stressLevel}/10
-                    </span>
-                    <span className="text-lg">
-                      {stats.stressLevel <= 3 ? '😌' : stats.stressLevel <= 6 ? '😐' : '😰'}
-                    </span>
+              {/* Enhanced Chat Header */}
+              <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      🧘‍♀️ Zen - Intelligent Wellness Assistant
+                      <span className="text-xs bg-white/20 px-2 py-1 rounded-full">AI Powered</span>
+                    </h3>
+                    <p className="text-sm text-blue-100 mt-1">
+                      Emotionally intelligent • Crisis-aware • Always here for you
+                    </p>
                   </div>
-                  <div className="text-gray-600">
-                    Messages: {stats.totalMessages}
+                  <div className="text-right">
+                    <div className="text-xs text-blue-100">Session Stats</div>
+                    <div className="flex items-center gap-3 text-sm mt-1">
+                      <div className="flex items-center gap-1">
+                        <span>Stress:</span>
+                        <span className={`font-bold px-2 py-1 rounded-full text-xs ${
+                          stats.stressLevel <= 3 ? 'bg-green-500' : 
+                          stats.stressLevel <= 6 ? 'bg-yellow-500' : 'bg-red-500'
+                        }`}>
+                          {stats.stressLevel}/10
+                        </span>
+                      </div>
+                      <div className="text-blue-100">
+                        {stats.totalMessages} messages
+                      </div>
+                    </div>
                   </div>
                 </div>
+                
+                {/* Conversation themes */}
+                {conversationContext.sessionData.conversationThemes.length > 0 && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-xs text-blue-200">Topics:</span>
+                    <div className="flex gap-1">
+                      {conversationContext.sessionData.conversationThemes.map((theme, idx) => (
+                        <span key={idx} className="text-xs bg-white/10 px-2 py-1 rounded-full text-blue-100">
+                          {theme}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <div className="text-4xl mb-3">🤖</div>
-                    <p>Hi! I'm here to help with stress management.</p>
-                    <p className="text-sm mt-2">Share how you're feeling and I'll provide personalized advice.</p>
+                  <div className="text-center py-8 text-gray-500 space-y-4">
+                    <div className="text-6xl mb-4">�‍♀️</div>
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-3xl border border-blue-100">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-2">
+                        Hello {session?.user?.name || 'friend'}! I'm Zen 💙
+                      </h4>
+                      <p className="text-gray-600 mb-3">
+                        Your personal AI wellness companion, here to listen, understand, and support you through anything you're experiencing.
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 text-sm">
+                        <div className="bg-white p-3 rounded-lg border border-blue-100">
+                          <div className="text-blue-600 font-medium">🤗 I'm here to listen</div>
+                          <div className="text-gray-600 mt-1">Share your thoughts, feelings, or concerns</div>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-purple-100">
+                          <div className="text-purple-600 font-medium">🧠 I understand emotions</div>
+                          <div className="text-gray-600 mt-1">I can sense your stress and provide support</div>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-green-100">
+                          <div className="text-green-600 font-medium">💡 I offer guidance</div>
+                          <div className="text-gray-600 mt-1">Personalized coping strategies and techniques</div>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-red-100">
+                          <div className="text-red-600 font-medium">🆘 Crisis support</div>
+                          <div className="text-gray-600 mt-1">Immediate help when you need it most</div>
+                        </div>
+                      </div>
+                      <div className="mt-4 text-sm text-gray-500">
+                        💭 Try starting with: "How are you feeling today?" or "I'm stressed about..."
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {messages.map((message) => (
                   <div key={message.id} className={`flex w-full ${message.isUser ? 'justify-start' : 'justify-end'}`}>
-                    <div className={`max-w-xs px-4 py-3 rounded-2xl ${
+                    <div className={`max-w-md px-4 py-3 rounded-2xl ${
                       message.isUser 
                         ? 'bg-blue-500 text-white rounded-bl-md' 
-                        : 'bg-gray-100 text-gray-800 rounded-br-md'
+                        : `bg-gray-100 text-gray-800 rounded-br-md ${
+                            message.aiResponse?.crisisLevel === 'severe' ? 'border-l-4 border-red-500' :
+                            message.aiResponse?.crisisLevel === 'moderate' ? 'border-l-4 border-yellow-500' :
+                            'border-l-4 border-green-500'
+                          }`
                     }`}>
-                      <p className="text-sm">{message.text}</p>
-                      {message.stressLevel && (
-                        <div className="mt-1 text-xs opacity-80">
+                      <div className="text-sm whitespace-pre-wrap">{message.text}</div>
+                      
+                      {/* User message stress indicator */}
+                      {message.isUser && message.stressLevel && (
+                        <div className="mt-2 text-xs opacity-80">
                           Stress: {message.stressLevel}/10
                           <span className="ml-1">
                             {message.stressLevel <= 3 ? '😌' : message.stressLevel <= 6 ? '😐' : '😰'}
                           </span>
                         </div>
                       )}
-                      <div className="text-xs opacity-70 mt-1">
+
+                      {/* AI response enhancements */}
+                      {!message.isUser && message.aiResponse && (
+                        <div className="mt-3 space-y-2">
+                          {/* Follow-up suggestions */}
+                          {message.aiResponse.followUpSuggestions && message.aiResponse.followUpSuggestions.length > 0 && (
+                            <div className="bg-blue-50 p-2 rounded-lg">
+                              <div className="text-xs font-medium text-blue-800 mb-1">💭 Gentle suggestions:</div>
+                              {message.aiResponse.followUpSuggestions.map((suggestion, idx) => (
+                                <div key={idx} className="text-xs text-blue-700">• {suggestion}</div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Therapeutic techniques */}
+                          {message.aiResponse.therapeuticTechniques && message.aiResponse.therapeuticTechniques.length > 0 && (
+                            <div className="bg-green-50 p-2 rounded-lg">
+                              <div className="text-xs font-medium text-green-800 mb-1">🧘 Helpful techniques:</div>
+                              {message.aiResponse.therapeuticTechniques.map((technique, idx) => (
+                                <div key={idx} className="text-xs text-green-700">• {technique}</div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Crisis level indicator */}
+                          {message.aiResponse.crisisLevel !== 'none' && (
+                            <div className={`text-xs px-2 py-1 rounded-full text-center ${
+                              message.aiResponse.crisisLevel === 'severe' ? 'bg-red-100 text-red-800' :
+                              message.aiResponse.crisisLevel === 'moderate' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {message.aiResponse.crisisLevel === 'severe' ? '🚨 High priority support' :
+                               message.aiResponse.crisisLevel === 'moderate' ? '⚠️ Care needed' :
+                               '✅ Supportive check-in'}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="text-xs opacity-70 mt-2">
                         {message.timestamp.toLocaleTimeString()}
                       </div>
                     </div>
@@ -460,24 +695,65 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
                 )}
               </div>
 
-              {/* Input Area */}
-              <div className="p-4 border-t border-gray-200 bg-white">
+              {/* Enhanced Input Area */}
+              <div className="p-4 border-t border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50">
+                {/* Quick suggestions (shown when no messages) */}
+                {messages.length === 0 && (
+                  <div className="mb-3">
+                    <div className="text-xs text-gray-600 mb-2">Quick starters:</div>
+                    <div className="flex gap-2 flex-wrap">
+                      {[
+                        "I'm feeling stressed about...",
+                        "I'm having a hard time with...",
+                        "I'm excited because...",
+                        "I need help with...",
+                        "Can you help me understand..."
+                      ].map((starter, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setInputMessage(starter)}
+                          className="text-xs px-2 py-1 bg-white border border-gray-300 rounded-full hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                        >
+                          {starter}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder="How are you feeling today? Share your thoughts..."
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                    placeholder={messages.length === 0 
+                      ? "Hi Zen! How are you feeling today? I'm here to listen..." 
+                      : "Continue sharing your thoughts..."}
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-400 focus:border-transparent shadow-sm"
+                    disabled={isTyping}
                   />
                   <button
                     onClick={handleSendMessage}
-                    disabled={!inputMessage.trim()}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!inputMessage.trim() || isTyping}
+                    className="px-6 py-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
                   >
-                    Send
+                    {isTyping ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Thinking...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Send</span>
+                        <span>💙</span>
+                      </>
+                    )}
                   </button>
+                </div>
+                
+                <div className="mt-2 text-xs text-gray-500 text-center">
+                  💙 Zen is powered by AI and designed to support your mental wellness
                 </div>
               </div>
             </div>
@@ -667,12 +943,152 @@ export default function PersonalDashboard({ onClose }: PersonalDashboardProps) {
 
           {activeTab === 'notifications' && (
             <div className="p-8 h-full overflow-y-auto">
-              <StressNotificationsPanel
-                notifications={stressNotifications.notifications}
-                onMarkAsRead={stressNotifications.markAsRead}
-                onMarkAllAsRead={stressNotifications.markAllAsRead}
-                onDelete={stressNotifications.deleteNotification}
-              />
+              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-gray-800">🧠 AI Wellness Alerts</h3>
+                  {stressNotifications.unreadCount > 0 && (
+                    <div className="flex items-center gap-3">
+                      <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                        {stressNotifications.unreadCount} new
+                      </span>
+                      <button 
+                        onClick={stressNotifications.markAllAsRead}
+                        className="text-sm text-blue-600 hover:text-blue-800 underline"
+                      >
+                        Mark all as read
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {stressNotifications.notifications.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <div className="text-4xl mb-2">🌟</div>
+                      <p className="text-lg font-medium">No wellness alerts right now</p>
+                      <p className="text-sm">Keep taking care of yourself!</p>
+                      <p className="text-xs text-green-600 mt-2">✅ AI monitoring system is active</p>
+                    </div>
+                  ) : (
+                    stressNotifications.notifications.map((notification) => {
+                      const getStressColor = (score: number) => {
+                        if (score >= 8) return 'border-red-500 bg-red-50'
+                        if (score >= 6) return 'border-orange-500 bg-orange-50'
+                        if (score >= 4) return 'border-yellow-500 bg-yellow-50'
+                        return 'border-green-500 bg-green-50'
+                      }
+
+                      const getStressIcon = (score: number) => {
+                        if (score >= 8) return '🚨'
+                        if (score >= 6) return '⚠️'
+                        if (score >= 4) return '💭'
+                        return '💙'
+                      }
+
+                      return (
+                        <div
+                          key={notification.id}
+                          className={`border-l-4 p-4 rounded-lg ${getStressColor(notification.stressScore)} ${
+                            notification.isRead ? 'opacity-70' : 'shadow-md'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3 flex-1">
+                              <div className="text-2xl">
+                                {getStressIcon(notification.stressScore)}
+                              </div>
+                              
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="font-semibold text-gray-800">
+                                    AI Stress Analysis
+                                  </span>
+                                  <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
+                                    Score: {notification.stressScore}/10
+                                  </span>
+                                  <span className={`text-xs px-2 py-1 rounded-full ${
+                                    notification.stressLevel === 'severe' ? 'bg-red-200 text-red-800' :
+                                    notification.stressLevel === 'high' ? 'bg-orange-200 text-orange-800' :
+                                    notification.stressLevel === 'moderate' ? 'bg-yellow-200 text-yellow-800' :
+                                    'bg-green-200 text-green-800'
+                                  }`}>
+                                    {notification.stressLevel.toUpperCase()}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(notification.timestamp).toLocaleTimeString()}
+                                  </span>
+                                </div>
+                                
+                                <p className="text-sm text-gray-700 mb-3">
+                                  {notification.message}
+                                </p>
+                                
+                                <div className="bg-white p-3 rounded-lg border border-gray-200 mb-3">
+                                  <h5 className="text-xs font-semibold text-gray-800 mb-2">📝 Original Message:</h5>
+                                  <p className="text-xs text-gray-600 italic">
+                                    "{notification.originalMessage}"
+                                  </p>
+                                </div>
+
+                                {notification.emotions.length > 0 && (
+                                  <div className="mb-3">
+                                    <h5 className="text-xs font-semibold text-gray-800 mb-1">🎭 Detected Emotions:</h5>
+                                    <div className="flex flex-wrap gap-1">
+                                      {notification.emotions.map((emotion, idx) => (
+                                        <span
+                                          key={idx}
+                                          className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full"
+                                        >
+                                          {emotion}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="bg-blue-50 p-3 rounded-lg">
+                                  <h5 className="text-xs font-semibold text-blue-800 mb-2">🤖 AI Recommendations:</h5>
+                                  <ul className="text-xs text-blue-700 space-y-1">
+                                    {notification.remedies.map((remedy, idx) => (
+                                      <li key={idx} className="flex items-start gap-1">
+                                        <span className="text-blue-500 mt-0.5">•</span>
+                                        <span>{remedy}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-col gap-2 ml-3">
+                              {!notification.isRead && (
+                                <button
+                                  onClick={() => stressNotifications.markAsRead(notification.id)}
+                                  className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full hover:bg-blue-200 transition-colors"
+                                >
+                                  Mark read
+                                </button>
+                              )}
+                              <button
+                                onClick={() => stressNotifications.deleteNotification(notification.id)}
+                                className="text-gray-400 hover:text-red-500 text-lg"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+                
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs text-gray-600 text-center">
+                    🤖 AI automatically analyzes your messages for stress patterns and provides personalized wellness recommendations
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>

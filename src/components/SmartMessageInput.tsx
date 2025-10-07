@@ -305,6 +305,14 @@ export default function SmartMessageInput({ onSendMessage, groupId }: SmartMessa
           stressAnalysis={stressAnalysis}
           onClose={() => setShowStressAlert(false)}
           onAcceptSuggestion={handleAcceptSuggestion}
+          onSendAnyway={stressAnalysis.riskLevel !== 'critical' ? () => {
+            // For non-critical stress, allow sending to get human help
+            onSendMessage(message, intention)
+            setMessage('')
+            setIntention(null)
+            setStressAnalysis(null)
+            setQuickStressLevel(0)
+          } : undefined}
         />
       )}
     </>

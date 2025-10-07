@@ -149,7 +149,7 @@ export class SmartEmotionalAI {
     
     // Primary model for comprehensive analysis
     this.primaryModel = this.genAI.getGenerativeModel({ 
-      model: 'gemini-pro-vision', // Use vision model for multimodal
+      model: 'models/gemini-2.5-flash', // Use latest flash model
       generationConfig: {
         temperature: 0.3, // Lower for more consistent emotional analysis
         topP: 0.8,
@@ -160,7 +160,7 @@ export class SmartEmotionalAI {
     
     // Fallback model for text-only analysis
     this.fallbackModel = this.genAI.getGenerativeModel({
-      model: 'gemini-pro',
+      model: 'models/gemini-2.5-flash',
       generationConfig: {
         temperature: 0.4,
         topP: 0.7,

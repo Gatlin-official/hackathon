@@ -75,7 +75,7 @@ export class EnhancedStressAnalyzer {
     
     // Primary model for detailed analysis
     this.model = this.genAI.getGenerativeModel({ 
-      model: 'gemini-pro',
+      model: 'models/gemini-2.5-flash',
       generationConfig: {
         temperature: 0.6, // Slightly lower for more consistent responses
         topP: 0.85,
@@ -86,7 +86,7 @@ export class EnhancedStressAnalyzer {
     
     // Fallback model with different settings for quick analysis
     this.fallbackModel = this.genAI.getGenerativeModel({
-      model: 'gemini-pro',
+      model: 'models/gemini-2.5-flash',
       generationConfig: {
         temperature: 0.4,
         topP: 0.7,

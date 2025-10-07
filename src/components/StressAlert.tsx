@@ -7,9 +7,10 @@ interface StressAlertProps {
   stressAnalysis: StressAnalysis | null
   onClose: () => void
   onAcceptSuggestion: (suggestion: string) => void
+  onSendAnyway?: () => void  // New prop for sending message anyway
 }
 
-export default function StressAlert({ stressAnalysis, onClose, onAcceptSuggestion }: StressAlertProps) {
+export default function StressAlert({ stressAnalysis, onClose, onAcceptSuggestion, onSendAnyway }: StressAlertProps) {
   if (!stressAnalysis || stressAnalysis.riskLevel === 'low') {
     return null
   }
@@ -116,15 +117,24 @@ export default function StressAlert({ stressAnalysis, onClose, onAcceptSuggestio
               </div>
             )}
 
+            {stressAnalysis.riskLevel !== 'critical' && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-sm text-blue-800">
+                  <strong>💙 Need Human Support?</strong> You can still send your message to ask for help from other students who might relate to your situation.
+                </p>
+              </div>
+            )}
+
             {stressAnalysis.riskLevel === 'critical' && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
                 <p className="text-sm text-red-800">
-                  <strong>🆘 Crisis Support:</strong> If you're in immediate distress, please reach out:
+                  <strong>🆘 Crisis Support:</strong> We care about you and want to connect you with professional help. Your message contains concerning content that won't be shared to protect other users.
                 </p>
                 <div className="mt-2 text-xs text-red-700">
-                  • Campus Counseling: Call your student support services
-                  • Crisis Hotline: 988 (US) or your local emergency number
-                  • Trusted friend, family member, or counselor
+                  <strong>Please reach out immediately:</strong>
+                  <br />• Campus Counseling: Call your student support services
+                  <br />• Crisis Hotline: 988 (US) or your local emergency number
+                  <br />• Trusted friend, family member, or counselor
                 </div>
               </div>
             )}
@@ -136,13 +146,35 @@ export default function StressAlert({ stressAnalysis, onClose, onAcceptSuggestio
               >
                 Dismiss
               </button>
-              {stressAnalysis.riskLevel !== 'critical' && (
+              {stressAnalysis.riskLevel === 'critical' ? (
+                // For crisis situations (die, suicide keywords) - only dismiss to protect other users
                 <button
                   onClick={onClose}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition"
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded transition"
                 >
-                  I'm OK
+                  I understand
                 </button>
+              ) : (
+                // For regular stress (fever, exams) - allow sending for human help
+                <>
+                  <button
+                    onClick={onClose}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition"
+                  >
+                    I'm OK
+                  </button>
+                  {onSendAnyway && (
+                    <button
+                      onClick={() => {
+                        onSendAnyway()
+                        onClose()
+                      }}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded transition"
+                    >
+                      Send Anyway
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>

@@ -61,14 +61,18 @@ export class BackgroundStressAnalyzer {
 
   private async analyzeMessage(request: BackgroundAnalysisRequest) {
     try {
-      // Perform Gemini AI analysis
+      console.log(`🧠 Starting Gemini AI analysis for message: "${request.text.substring(0, 50)}..."`)
+      
+      // Perform enhanced Gemini AI analysis with better context
       const analysis = await geminiStressAnalyzer.analyzeStress({
         message: request.text,
         userEmail: request.userEmail,
         timeOfDay: request.timestamp.toLocaleTimeString(),
-        conversationContext: 'background_analysis',
+        conversationContext: `Background analysis in group ${request.groupId}`,
         previousMessages: request.conversationContext || []
       })
+
+      console.log(`✅ Analysis complete - Stress Score: ${analysis.stressScore}, Level: ${analysis.stressLevel}, Emotions: ${analysis.emotions.join(', ')}`)
 
       // Store analysis result in localStorage for persistence
       this.storeAnalysisResult({
@@ -77,14 +81,20 @@ export class BackgroundStressAnalyzer {
         stressLevel: analysis.stressLevel,
         emotions: analysis.emotions,
         remedies: analysis.remedies,
-        needsNotification: analysis.stressScore > 5
+        needsNotification: analysis.stressScore >= 5
       })
 
-      // If stress score > 5, create notification
-      if (analysis.stressScore > 5) {
+      // If stress score >= 5, create notification (changed from > 5)
+      if (analysis.stressScore >= 5) {
+        console.log(`🔔 Creating notification for stress score: ${analysis.stressScore}`)
         const personalizedRemedies = geminiStressAnalyzer.generatePersonalizedRemedies(
           analysis, 
-          { backgroundAnalysis: true, messageId: request.messageId }
+          {
+            message: request.text,
+            userEmail: request.userEmail,
+            timeOfDay: request.timestamp.toLocaleTimeString(),
+            conversationContext: `background_analysis_notification`
+          }
         )
 
         const notification = {
