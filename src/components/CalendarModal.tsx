@@ -107,10 +107,13 @@ export default function CalendarModal({ isOpen, onClose, eventDetails, simulatio
                   <li>Events will then be created in your actual calendar</li>
                 </ol>
                 <button
-                  onClick={() => window.location.href = '/api/auth/signin?callbackUrl=' + encodeURIComponent(window.location.href)}
-                  className="mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  onClick={() => {
+                    // Force sign out first, then redirect to sign in with calendar scope
+                    window.location.href = '/api/auth/signout?callbackUrl=' + encodeURIComponent('/api/auth/signin?callbackUrl=' + encodeURIComponent(window.location.href))
+                  }}
+                  className="mt-2 px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
                 >
-                  🔄 Re-authenticate with Calendar Access
+                  🔄 Sign Out & Re-authenticate for Calendar Access
                 </button>
               </div>
             </div>

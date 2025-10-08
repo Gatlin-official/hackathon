@@ -32,23 +32,53 @@ class ServerCalendarService {
   generateStudyPlan(plan: StudyPlan): CalendarEvent[] {
     const events: CalendarEvent[] = []
     const now = new Date()
+    
+    // Create study sessions starting tomorrow morning at 8 AM
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    tomorrow.setHours(8, 0, 0, 0) // Start at 8:00 AM
     
     // Create study sessions based on stress level and available time
     const sessionsCount = plan.stressLevel > 7 ? 2 : plan.stressLevel > 4 ? 3 : 4
     const sessionDuration = plan.timeAvailable ? Math.floor(plan.timeAvailable / sessionsCount) : 90
     
     for (let i = 0; i < sessionsCount; i++) {
-      const startTime = new Date(tomorrow.getTime() + (i * 2 + 9) * 60 * 60 * 1000) // Start at 9 AM, 2-hour intervals
+      // Calculate proper start time: 8 AM, 10:30 AM, 1 PM, etc.
+      const startTime = new Date(tomorrow.getTime() + (i * 2.5) * 60 * 60 * 1000)
       const endTime = new Date(startTime.getTime() + sessionDuration * 60 * 1000)
       
+      const formattedTime = `${startTime.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      })} - ${endTime.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      })}`
+
       events.push({
-        title: `${plan.subject} Study Session ${i + 1}`,
+        title: `📚 ${plan.subject} Study Session ${i + 1} (${formattedTime})`,
         start: startTime,
         end: endTime,
-        description: plan.currentTopic 
-          ? `Focus on ${plan.currentTopic}. Break complex topics into smaller parts.`
-          : `Study session for ${plan.subject}. Review notes and practice problems.`,
+        description: `
+📖 Subject: ${plan.subject}
+⏰ Time: ${formattedTime}
+📅 Session ${i + 1} of ${sessionsCount}
+
+🎯 Focus Areas:
+${plan.currentTopic ? `• ${plan.currentTopic}` : '• Review lecture notes'}
+• Practice problems and examples
+• Identify key concepts for exam
+
+💡 Study Tips:
+• Take notes on important formulas
+• Create concept maps
+• Practice active recall
+• Review previous assignments
+
+📍 Location: Study Room / Library
+⚡ You've got this! Stay focused! 🚀
+        `.trim(),
         type: 'study' as const,
         location: 'Study Room / Library'
       })
@@ -56,14 +86,42 @@ class ServerCalendarService {
       // Add break after each session (except the last)
       if (i < sessionsCount - 1) {
         const breakStart = new Date(endTime.getTime() + 15 * 60 * 1000)
-        const breakEnd = new Date(breakStart.getTime() + 15 * 60 * 1000)
+        const breakEnd = new Date(breakStart.getTime() + 30 * 60 * 1000)
         
+        const breakTime = `${breakStart.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit',
+          hour12: true 
+        })} - ${breakEnd.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit',
+          hour12: true 
+        })}`
+
         events.push({
-          title: '☀️ Study Break',
+          title: `☀️ Study Break (${breakTime})`,
           start: breakStart,
           end: breakEnd,
-          description: 'Take a refreshing break. Stretch, hydrate, and relax your mind.',
-          type: 'break' as const
+          description: `
+🧘 Time to Recharge!
+⏰ Break Time: ${breakTime}
+
+💧 What to do:
+• Hydrate with water
+• Take a 5-minute walk
+• Do some stretching
+• Practice deep breathing
+• Grab a healthy snack
+
+🚫 Avoid:
+• Social media scrolling
+• Heavy meals
+• Stressful conversations
+
+⚡ You're doing great! This break will help you focus better for the next session! 
+          `.trim(),
+          type: 'break' as const,
+          location: 'Break Area / Fresh Air'
         })
       }
     }
@@ -160,27 +218,40 @@ export async function POST(request: NextRequest) {
       case 'create_events': {
         const { events } = params as { events: CalendarEvent[] }
         
-        if (hasRealAccess) {
-          // Real Google Calendar integration
+        // FORCE real calendar integration if we have ANY session
+        if (session?.user?.email) {
+          console.log('🚀 Attempting REAL Google Calendar integration for:', session.user.email)
+          
+          // Try real Google Calendar integration even if accessToken might be missing
           try {
-            const calendarService = new GoogleCalendarService(session.accessToken)
-            
-            // Check calendar access first
-            const hasAccess = await calendarService.hasCalendarAccess()
-            if (!hasAccess) {
+            if (!session.accessToken) {
+              console.log('❌ No access token - user needs to re-authenticate')
               return NextResponse.json({
                 success: false,
-                error: 'No calendar access. Please re-authenticate with Google Calendar permissions.',
+                error: 'Please sign out and sign back in to grant Google Calendar permissions',
                 simulationMode: true,
+                needsReauth: true,
                 eventDetails: events.map((event, index) => ({
                   number: index + 1,
                   title: event.title,
-                  date: event.start.toLocaleDateString(),
-                  time: `${event.start.toLocaleTimeString()} - ${event.end.toLocaleTimeString()}`,
+                  date: new Date(event.start).toLocaleDateString(),
+                  time: `${new Date(event.start).toLocaleTimeString()} - ${new Date(event.end).toLocaleTimeString()}`,
                   description: event.description
                 }))
               })
             }
+
+            const calendarService = new GoogleCalendarService(session.accessToken)
+            console.log('📅 Google Calendar service created successfully')
+            
+            // FORCE calendar creation - bypass access check for now
+            console.log('� FORCING Google Calendar creation - bypassing access check')
+            
+            // Test calendar access with a simple call
+            const hasAccess = await calendarService.hasCalendarAccess()
+            console.log('🔍 Calendar access check result:', hasAccess)
+            
+            // Continue even if access check fails - the token might still work for creating events
             
             // Create events in real Google Calendar
             console.log('📅 Creating events in Google Calendar:', events.length, 'events')

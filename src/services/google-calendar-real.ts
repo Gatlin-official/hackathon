@@ -114,9 +114,16 @@ export class GoogleCalendarService {
   // Helper method to check if user has calendar access
   async hasCalendarAccess() {
     try {
-      await this.calendar.calendarList.list({ maxResults: 1 })
+      console.log('🔍 Testing Google Calendar API access...')
+      const response = await this.calendar.calendarList.list({ maxResults: 1 })
+      console.log('✅ Calendar API test successful:', response.data ? 'Got calendars' : 'No calendars but API works')
       return true
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ Calendar API test failed:', {
+        message: error.message,
+        code: error.code,
+        status: error.status
+      })
       return false
     }
   }
