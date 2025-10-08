@@ -16,7 +16,7 @@ export default function AccountSettings({ onClose }: AccountSettingsProps) {
 
   useEffect(() => {
     if (session?.user?.email) {
-      const currentUsername = getCurrentUsername(session.user.email)
+      const currentUsername = getCurrentUsername(session)
       setDisplayName(currentUsername)
     }
     
@@ -38,11 +38,10 @@ export default function AccountSettings({ onClose }: AccountSettingsProps) {
       const newUsername = generateRandomUsername()
       setDisplayName(newUsername)
       
-      // Update localStorage with new username
-      const currentMappings = JSON.parse(localStorage.getItem('usernameMappings') || '{}')
+      // Update localStorage with new username using the same key format as getCurrentUsername
       if (session.user?.email) {
-        currentMappings[session.user.email] = newUsername
-        localStorage.setItem('usernameMappings', JSON.stringify(currentMappings))
+        const usernameKey = `displayName_${session.user.email}`
+        localStorage.setItem(usernameKey, newUsername)
       }
       
       setIsGeneratingUsername(false)
@@ -65,10 +64,15 @@ export default function AccountSettings({ onClose }: AccountSettingsProps) {
   }
 
   const handleSave = () => {
-    // Save mentor contacts to localStorage with user-specific key
     if (session?.user?.email) {
+      // Save mentor contacts to localStorage with user-specific key
       const contactsKey = `mentorContacts_${session.user.email}`
       localStorage.setItem(contactsKey, JSON.stringify(mentorContacts))
+      
+      // Save current display name to localStorage
+      const usernameKey = `displayName_${session.user.email}`
+      localStorage.setItem(usernameKey, displayName)
+      
       console.log('Settings saved successfully!')
     }
     

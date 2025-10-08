@@ -32,13 +32,18 @@ export function getUsernameForEmail(email: string): string {
   return username
 }
 
-// Get current user's display name
+// Get current user's display name (prioritizes randomized username)
 export function getCurrentUsername(session: any): string {
-  if (session?.user?.name) {
-    return session.user.name
-  }
-  
   if (session?.user?.email) {
+    // Check for user-specific randomized username first
+    const randomizedKey = `displayName_${session.user.email}`
+    const randomizedUsername = localStorage.getItem(randomizedKey)
+    
+    if (randomizedUsername) {
+      return randomizedUsername
+    }
+    
+    // Fallback to generated username for this email
     return getUsernameForEmail(session.user.email)
   }
   
