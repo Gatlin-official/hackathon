@@ -1,26 +1,56 @@
-# Student Discussion Groups 💬
+# 🧠 Student Wellness & Discussion Hub 
 
-A modern real-time web application for students to create discussion groups, engage in meaningful conversations, and connect with peers through secure Google OAuth authentication.
+A comprehensive AI-powered platform combining student discussion groups with advanced stress detection, crisis intervention, and wellness support. Features real-time Google Calendar integration, personalized mentor contacts, and intelligent emotional analysis.
 
-![Next.js](https://img.shields.io/badge/Next.js-14.2.5-black)
+![Next.js](https://img.shields.io/badge/Next.js-14.2.33-black)
 ![Socket.io](https://img.shields.io/badge/Socket.io-4.7.5-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8)
+![Google Calendar API](https://img.shields.io/badge/Google%20Calendar%20API-Integrated-green)
+![Gemini AI](https://img.shields.io/badge/Gemini%20AI-Enhanced-purple)
 
-## ✨ Features
+## 🌟 Key Features
 
-### 🔐 **Authentication & Users**
-- **Google Sign-In**: Secure OAuth authentication
-- **Random Usernames**: Reddit-style unique usernames (e.g., "SwiftTiger342")
-- **Anonymous Identity**: No email addresses visible to other users
+### 🔐 **Enhanced Authentication & User Management**
+- **Google OAuth 2.0**: Secure authentication with Calendar API access
+- **Randomized Usernames**: Reddit-style usernames with 🎲 regeneration button
+- **Personalized Profiles**: Custom display names and mentor contact management
+- **Session Management**: Persistent user states across app sections
 
-### 💬 **Smart Messaging**
-- **Message Intentions**: Flag messages with context
-  - 🚨 **Help Needed Fast** (Red flag for urgent help)
-  - 💡 **Need Advice** (Yellow flag for seeking guidance) 
-  - 💭 **Just Venting** (Purple flag for emotional support)
-- **Real-time Chat**: Instant message delivery with Socket.io
-- **Visual Indicators**: Color-coded intention badges on messages
+### 🤖 **AI-Powered Wellness System**
+- **Real-time Stress Detection**: Advanced Gemini AI analysis of user messages
+- **Crisis Intervention**: Automatic detection of distress with personalized support
+- **Mentor Contacts**: Custom safety contacts prioritized in crisis situations  
+- **Intelligent Wellness Bot**: "Zen" - AI companion for emotional support
+- **Mood Tracking**: Visual analytics for stress patterns and trends
+
+### 📅 **Smart Calendar Integration**
+- **Real-time Google Calendar**: Live events with proper time formatting
+- **Automated Scheduling**: AI-suggested study sessions and break reminders
+- **Exam Preparation**: Intelligent calendar blocking for upcoming tests
+- **Session Details**: Comprehensive event descriptions with study tips
+
+### 💬 **Advanced Messaging & Groups**
+- **Message Intentions**: Context-aware communication flags
+  - 🚨 **Crisis/Emergency** (Immediate AI intervention)
+  - 💡 **Need Advice** (Peer support recommendations)
+  - 💭 **Venting** (Emotional support mode)
+- **Real-time Chat**: Socket.io powered instant messaging
+- **Group Management**: Public/private groups with invite systems
+
+### 🆘 **Crisis Support & Safety Features**
+- **Personalized Crisis Contacts**: Custom mentor/safety contacts in emergencies
+- **Intelligent Crisis Detection**: AI identifies distress language patterns
+- **Priority Contact System**: Personal mentors shown before generic hotlines
+- **Emergency Resources**: National crisis hotlines and campus support
+- **Safety-First Design**: User safety prioritized in all interactions
+
+### 🎨 **Modern UI/UX Enhancements** 
+- **Responsive Design**: Optimized for desktop and mobile devices
+- **Accessibility Improvements**: Fixed text visibility and contrast issues
+- **Interactive Elements**: Dice button for username regeneration
+- **Clean Interface**: Streamlined dashboard with essential features
+- **Real-time Feedback**: Live stress analysis and AI coaching
 
 ### 👥 **Group Management**
 - **Public Groups**: 🌍 Open for anyone to join
@@ -34,14 +64,32 @@ A modern real-time web application for students to create discussion groups, eng
 - **Real-time Updates**: Live group creation and messaging
 - **Copy-to-Clipboard**: Easy invite sharing
 
-## 🛠️ Tech Stack
+## 🛠️ Advanced Tech Stack
 
-- **Frontend**: Next.js 14 with TypeScript
-- **Backend**: Express.js with Socket.io
-- **Authentication**: NextAuth.js with Google OAuth
-- **Styling**: Tailwind CSS
-- **Real-time**: Socket.io for live messaging
-- **Development**: ESLint, PostCSS, Autoprefixer
+### **Core Framework**
+- **Next.js 14.2.33**: App Router with TypeScript support
+- **React 18**: Modern React with hooks and server components
+- **TypeScript**: Full type safety across the application
+
+### **AI & Intelligence**
+- **Google Gemini AI**: Advanced language model for stress analysis
+- **Enhanced Stress Analyzer**: Multi-layered emotional intelligence system
+- **Crisis Detection Engine**: Real-time pattern recognition for safety
+
+### **Authentication & APIs**
+- **NextAuth.js**: Secure OAuth with Google Calendar API scopes
+- **Google Calendar API**: Real-time event creation and management
+- **Google OAuth 2.0**: Comprehensive user authentication
+
+### **Real-time & Backend**
+- **Socket.io**: Live messaging and group communication
+- **Express.js**: RESTful API for wellness and stress data
+- **LocalStorage**: User-specific data persistence
+
+### **Styling & UI**
+- **Tailwind CSS**: Utility-first responsive design
+- **Custom Components**: Reusable React components with TypeScript
+- **Responsive Design**: Mobile-first approach with modern aesthetics
 
 ## 🚀 Quick Start
 
