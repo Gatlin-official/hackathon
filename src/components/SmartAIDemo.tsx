@@ -121,6 +121,7 @@ export default function SmartAIDemo({ className = '' }: SmartAIDemoProps) {
           }}
           onDismiss={() => setIsCrisisMode(false)}
           onGetHelp={() => setIsCrisisMode(false)}
+          mentorContacts={[]}
           className="w-full"
         />
       </div>

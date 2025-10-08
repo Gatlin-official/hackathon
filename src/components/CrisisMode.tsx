@@ -5,6 +5,7 @@ interface CrisisModeProps {
   analysis: EnhancedStressAnalysis;
   onDismiss: () => void;
   onGetHelp: () => void;
+  mentorContacts?: { name: string; contact: string }[];
   className?: string;
 }
 
@@ -17,7 +18,7 @@ interface CrisisResource {
   urgent?: boolean;
 }
 
-export default function CrisisMode({ analysis, onDismiss, onGetHelp, className = '' }: CrisisModeProps) {
+export default function CrisisMode({ analysis, onDismiss, onGetHelp, mentorContacts = [], className = '' }: CrisisModeProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [selectedResource, setSelectedResource] = useState<CrisisResource | null>(null);
 
@@ -149,8 +150,37 @@ export default function CrisisMode({ analysis, onDismiss, onGetHelp, className =
                 </p>
               </div>
 
-              {/* Crisis Resources */}
+              {/* Mentor/Safety Contacts */}
+              {mentorContacts.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-md font-semibold text-purple-800 mb-3 flex items-center">
+                    👥 Your Trusted Contacts
+                  </h4>
+                  <div className="space-y-2 mb-4">
+                    {mentorContacts.map((mentor, index) => (
+                      <div
+                        key={`mentor-${index}`}
+                        onClick={() => window.open(`tel:${mentor.contact.replace(/[^\d]/g, '')}`)}
+                        className="p-3 border border-purple-300 bg-purple-50 hover:bg-purple-100 rounded-lg cursor-pointer transition-all"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h5 className="font-semibold text-purple-800">{mentor.name}</h5>
+                            <p className="font-mono text-sm text-purple-700">{mentor.contact}</p>
+                          </div>
+                          <span className="text-purple-600">📞</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Emergency Crisis Resources */}
               <div className="space-y-3 mb-6">
+                <h4 className="text-md font-semibold text-red-800 mb-3 flex items-center">
+                  🆘 Emergency Resources
+                </h4>
                 {crisisResources.map((resource, index) => (
                   <div
                     key={index}

@@ -28,6 +28,7 @@ export default function EnhancedSmartMessageInput({
   const [showStressAlert, setShowStressAlert] = useState(false)
   const [showCrisisMode, setShowCrisisMode] = useState(false)
   const [showCoach, setShowCoach] = useState(false)
+  const [mentorContacts, setMentorContacts] = useState<{ name: string; contact: string }[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [quickStressLevel, setQuickStressLevel] = useState(0)
   const [userStressHistory, setUserStressHistory] = useState<EnhancedStressAnalysis[]>([])
@@ -243,8 +244,19 @@ export default function EnhancedSmartMessageInput({
       }
     }
 
+    const loadMentorContacts = () => {
+      try {
+        const contactsKey = `mentorContacts_${session?.user?.email || 'anonymous'}`
+        const contacts = JSON.parse(localStorage.getItem(contactsKey) || '[]')
+        setMentorContacts(contacts)
+      } catch (error) {
+        console.error('Failed to load mentor contacts:', error)
+      }
+    }
+
     if (session) {
       loadStressHistory()
+      loadMentorContacts()
     }
   }, [session])
 
@@ -309,6 +321,7 @@ export default function EnhancedSmartMessageInput({
           analysis={stressAnalysis}
           onDismiss={handleCrisisDismiss}
           onGetHelp={handleCrisisHelp}
+          mentorContacts={mentorContacts}
         />
       )}
 
